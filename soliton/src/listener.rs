@@ -3,6 +3,8 @@
 //! Resolve a [`std::net::SocketAddr`] from env (or an explicit default), refuse non-loopback binds
 //! without an HMAC key, and bind a Tokio TCP listener for [`crate::serve`].
 //!
+//! Full resolve → bind → serve sequence: [Bind and serve](crate#bind-and-serve).
+//!
 //! # Concern → API
 //!
 //! | Concern | API |
@@ -22,6 +24,7 @@
 //!
 //! # async fn demo() -> anyhow::Result<()> {
 //! let addr = resolve_listen_addr(ListenAddrDefault::Loopback { port: 3002 })?;
+//! assert!(addr.ip().is_loopback());
 //! let listener = bind_tcp_with_policy(addr).await?;
 //! serve(listener, Router::new()).await?;
 //! # Ok(())

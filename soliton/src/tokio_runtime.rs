@@ -4,6 +4,24 @@
 //! worker stack can overflow in debug builds. [`run()`] uses **8 MiB** per worker by default;
 //! override via [`WORKER_STACK_ENV`] (`SOLITON_WORKER_STACK_BYTES`).
 //!
+//! ## Host runtime
+//!
+//! Soliton-hosted binaries call [`run()`] from **`main` at host boot** instead of
+//! `#[tokio::main]` so worker threads get enlarged stacks before resolve → bind → serve runs.
+//!
+//! **Prerequisites:** Optional `SOLITON_WORKER_STACK_BYTES` (decimal bytes, minimum 1 MiB when set).
+//!
+//! ```rust,no_run
+//! fn main() -> anyhow::Result<()> {
+//!     let out = soliton::tokio_runtime::run(async {
+//!         // resolve → bind → serve …
+//!         Ok::<(), anyhow::Error>(())
+//!     });
+//!     assert!(out.is_ok());
+//!     out
+//! }
+//! ```
+//!
 //! # Concern → API
 //!
 //! | Concern | API |

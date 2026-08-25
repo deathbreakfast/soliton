@@ -1,40 +1,37 @@
-//! Axum process host: bind a TCP listener, serve a [`Router`](axum::Router), and attach
-//! per-request extensions.
-//!
-//! Also includes a `GET /health` router, optional HMAC bearer middleware for subsystem HTTP
-//! APIs, and a multi-thread Tokio runtime helper with a configurable worker stack.
-//!
-//! Built on Axum and Tokio. Hosts inject their own app state (for example via
-//! [`middleware::RequestExtensionState`]) and compose domain routers on the shared
-//! listen/serve path.
+//! Soliton turns a composed Axum [`Router`](axum::Router) into a listening host process.
+//! It resolves and binds a TCP address, runs the accept loop, merges a `/health` probe route,
+//! and optionally layers subsystem HMAC auth and per-request extension injection before your
+//! handlers run. Bring routes and state; Soliton handles process boot, listen policy, and the
+//! shared middleware stack around them.
 //!
 //! Operational events use the [`tracing`] crate (bind, serve lifecycle, HMAC rejects,
 //! worker-stack env warnings). **Hosts own the subscriber** — without one, events are
 //! no-ops.
 //!
-//! ## Capabilities
+//! # Features
 //!
-//! - **HTTP:** [`serve`] / [`serve_with_graceful_shutdown`] bind Axum with optional graceful shutdown.
-//! - **Listen policy:** [`resolve_listen_addr`], [`ensure_bind_allowed`], [`bind_tcp_with_policy`], [`bind_tcp`].
-//! - **Request context:** [`middleware::attach_request_extensions`] injects host-owned extensions per request.
-//! - **Runtime:** [`tokio_runtime::run`] builds a multi-thread Tokio runtime with configurable worker stack size.
-//! - **Ops:** [`health`], optional [`subsystem_auth`] HMAC middleware.
+//! - **Bind and serve** — Resolve a listen address, enforce bind policy, and run an Axum accept loop. [Get started](#bind-and-serve)
+//! - **Request extensions** — Inject host-owned values into each request for handlers to extract. [Get started](crate::middleware#per-request-extensions)
+//! - **Health probe** — Expose `GET /health` for load balancers and orchestrators. [Get started](crate::health#liveness-probe)
+//! - **Subsystem HMAC** — Require signed bearer headers on subsystem API paths when a key is configured. [Get started](crate::subsystem_auth#subsystem-hmac)
+//! - **Tokio runtime** — Boot the host with enlarged worker stacks for deep async call chains. [Get started](crate::tokio_runtime#host-runtime)
 //!
-//! # Organized by task
-//!
-//! | Task | Start here |
-//! |------|------------|
-//! | Bind + serve Axum | [`resolve_listen_addr`], [`ensure_bind_allowed`] / [`bind_tcp_with_policy`], [`serve`] — [example](#quick-example) |
-//! | Per-request host state | [`middleware::RequestExtensionState`], [`middleware::attach_request_extensions`] |
-//! | Liveness endpoint | [`health_router`] (`GET /health`) |
-//! | HMAC bearer auth for subsystem HTTP APIs | [`subsystem_auth`] |
-//! | Deep async-stack Tokio runtime | [`tokio_runtime::run`] |
+//! # Getting started
 //!
 //! Runnable host wire-up: `cargo run -p soliton --example process_host`
 //!
 //! Auth contract smoke: `cargo run -p soliton --example hmac_health_host`
 //!
-//! # Quick example
+//! ## Bind and serve
+//!
+//! Soliton turns a composed Axum [`Router`](axum::Router) into a listening TCP host. At
+//! **host boot**, call this path from `main` after routes, health, and middleware layers are
+//! wired — it resolves the listen address, applies bind policy, and blocks in the accept loop
+//! until the process exits.
+//!
+//! **Prerequisites:** An Axum [`Router<()>`](axum::Router) with [`Router::with_state`](axum::Router::with_state)
+//! applied when handlers need state. Non-loopback binds require `SUBSYSTEM_AUTH_HMAC_KEY`
+//! (≥ 32 bytes) through [`bind_tcp_with_policy`].
 //!
 //! ```rust,no_run
 //! use axum::{middleware::from_fn, routing::get, Router};
@@ -52,12 +49,18 @@
 //! fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!     soliton::tokio_runtime::run(async {
 //!         let addr = resolve_listen_addr(ListenAddrDefault::Loopback { port: 3002 })?;
+//!         assert!(addr.ip().is_loopback());
 //!         let listener = bind_tcp_with_policy(addr).await?;
+//!         assert!(listener.local_addr()?.port() > 0);
 //!         serve(listener, app()).await?;
 //!         Ok::<(), Box<dyn std::error::Error>>(())
 //!     })
 //! }
 //! ```
+//!
+//! **Next:** [`process_host`](../../examples/process_host.rs) for extensions and graceful shutdown.
+//! For unsigned `/api` rejection when HMAC is configured, see
+//! [Subsystem HMAC — unsigned requests](crate::subsystem_auth#unsigned-api-requests).
 //!
 //! # Further reading
 //!
