@@ -10,7 +10,7 @@
 //!
 //! # Features
 //!
-//! - **Bind and serve** — Resolve a listen address, enforce bind policy, and run an Axum accept loop. [Get started](#bind-and-serve)
+//! - **HTTP bind and serve** — Resolve a listen address, enforce bind policy, and run an Axum accept loop. [Get started](#bind-and-serve)
 //! - **Request extensions** — Inject host-owned values into each request for handlers to extract. [Get started](crate::middleware#per-request-extensions)
 //! - **Health probe** — Expose `GET /health` for load balancers and orchestrators. [Get started](crate::health#liveness-probe)
 //! - **Subsystem HMAC** — Require signed bearer headers on subsystem API paths when a key is configured. [Get started](crate::subsystem_auth#subsystem-hmac)
