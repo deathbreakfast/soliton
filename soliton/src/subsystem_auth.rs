@@ -7,6 +7,35 @@
 //!
 //! [`subsystem_hmac_header_pair`] is used by remote HTTP clients to attach the same header.
 //!
+//! ## Subsystem HMAC
+//!
+//! Subsystem HTTP APIs need machine-to-machine auth without browser cookies. Layer
+//! [`axum_optional_subsystem_hmac`] on the router so **each per-request** call to enforced paths
+//! is checked before handlers run; clients sign with [`subsystem_hmac_header_pair`].
+//!
+//! **Prerequisites:** `SUBSYSTEM_AUTH_HMAC_KEY` with at least 32 bytes of key material (UTF-8
+//! or `hex:` prefix). Without a valid key, enforced paths return **401** (fail closed).
+//!
+//! ```rust,no_run
+//! use axum::middleware::from_fn;
+//! use axum::routing::get;
+//! use axum::Router;
+//! use soliton::subsystem_auth::{axum_optional_subsystem_hmac, subsystem_hmac_header_pair, SUBSYSTEM_AUTH_HEADER_NAME};
+//!
+//! let app: Router<()> = Router::new()
+//!     .route("/api/ping", get(|| async { axum::http::StatusCode::OK }))
+//!     .layer(from_fn(axum_optional_subsystem_hmac));
+//! if let Some((name, tag)) = subsystem_hmac_header_pair("GET", "/api/ping", b"") {
+//!     assert_eq!(name, SUBSYSTEM_AUTH_HEADER_NAME);
+//!     assert!(!tag.is_empty());
+//! }
+//! ```
+//!
+//! ### Unsigned API requests
+//!
+//! When the key is configured, requests to `/api` without a valid `x-subsystem-auth` header
+//! receive **401 Unauthorized**. Runnable smoke: `cargo run -p soliton --example hmac_health_host`.
+//!
 //! ## Production defaults
 //!
 //! Enforced paths require `SUBSYSTEM_AUTH_HMAC_KEY` (minimum 32 bytes of key material).
@@ -35,28 +64,7 @@
 //!
 //! # Examples
 //!
-//! Layer middleware:
-//!
-//! ```rust,no_run
-//! use axum::Router;
-//! use soliton::subsystem_auth::axum_optional_subsystem_hmac;
-//!
-//! let app: Router<()> = Router::new().layer(axum::middleware::from_fn(axum_optional_subsystem_hmac));
-//! let _ = app;
-//! ```
-//!
-//! Client signing (same key env as the server):
-//!
-//! ```rust,no_run
-//! use soliton::subsystem_auth::subsystem_hmac_header_pair;
-//!
-//! # fn demo() {
-//! if let Some((name, tag)) = subsystem_hmac_header_pair("GET", "/api/ping", b"") {
-//!     // attach `name` / `tag` on the outbound request
-//!     let _ = (name, tag);
-//! }
-//! # }
-//! ```
+//! See [Subsystem HMAC](#subsystem-hmac) for the layer + client signing walkthrough.
 //!
 //! Rejected requests emit a [`tracing`] `warn` with HTTP status, a low-cardinality
 //! `path_class` (`api` / `handoff_internal`), and a `reason` — never key material or bodies.
